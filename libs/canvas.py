@@ -206,10 +206,10 @@ class Canvas(QWidget):
                 self.repaint()
         elif ev.button() == Qt.LeftButton and self.selectedShape:
             self.overrideCursor(CURSOR_GRAB)
-        elif ev.button() == Qt.LeftButton:
-            pos = self.transformPos(ev.pos())
-            if self.drawing():
-                self.handleDrawing(pos)
+        #elif ev.button() == Qt.LeftButton:
+            #pos = self.transformPos(ev.pos())
+            #if self.drawing():
+                #self.handleDrawing(pos)
 
     def endMove(self, copy=False):
         assert self.selectedShape and self.selectedShapeCopy

@@ -26,20 +26,20 @@ except ImportError:
 
 import resources
 # Add internal libs
-dir_name = os.path.abspath(os.path.dirname(__file__))
-libs_path = os.path.join(dir_name, 'libs')
-sys.path.insert(0, libs_path)
-from lib import struct, newAction, newIcon, addActions, fmtShortcut
-from shape import Shape, DEFAULT_LINE_COLOR, DEFAULT_FILL_COLOR
-from canvas import Canvas
-from zoomWidget import ZoomWidget
-from labelDialog import LabelDialog
-from colorDialog import ColorDialog
-from labelFile import LabelFile, LabelFileError
-from toolBar import ToolBar
-from pascal_voc_io import PascalVocReader
-from pascal_voc_io import XML_EXT
-from ustr import ustr
+#dir_name = os.path.abspath(os.path.dirname(__file__))
+#libs_path = os.path.join(dir_name, 'libs')
+#sys.path.insert(0, libs_path)
+from libs.lib import struct, newAction, newIcon, addActions, fmtShortcut
+from libs.shape import Shape, DEFAULT_LINE_COLOR, DEFAULT_FILL_COLOR
+from libs.canvas import Canvas
+from libs.zoomWidget import ZoomWidget
+from libs.labelDialog import LabelDialog
+from libs.colorDialog import ColorDialog
+from libs.labelFile import LabelFile, LabelFileError
+from libs.toolBar import ToolBar
+from libs.pascal_voc_io import PascalVocReader
+from libs.pascal_voc_io import XML_EXT
+from libs.ustr import ustr
 
 __appname__ = 'labelImg'
 
@@ -208,7 +208,7 @@ class MainWindow(QMainWindow, WindowMixin):
         opendir = action('&Open Dir', self.openDir,
                          'Ctrl+u', 'open', u'Open Dir')
 
-        changeSavedir = action('&Change default saved Annotation dir', self.changeSavedir,
+        changeSavedir = action('&Change save dir', self.changeSavedir,
                                'Ctrl+r', 'open', u'Change default saved Annotation dir')
 
         openAnnotation = action('&Open Annotation', self.openAnnotation,
@@ -348,7 +348,13 @@ class MainWindow(QMainWindow, WindowMixin):
         addActions(self.menus.file,
                    (open, opendir, changeSavedir, openAnnotation, self.menus.recentFiles, save, saveAs, close, None, quit))
         addActions(self.menus.help, (help,))
+        
+        self.singleClassMode = QAction("Single Class Mode", self)
+        self.singleClassMode.setShortcut("Ctrl+Shift+S")
+        self.singleClassMode.setCheckable(True)
+        self.lastLabel = None
         addActions(self.menus.view, (
+            self.singleClassMode,
             labels, advancedMode, None,
             hideAll, showAll, None,
             zoomIn, zoomOut, zoomOrg, None,
@@ -364,11 +370,11 @@ class MainWindow(QMainWindow, WindowMixin):
 
         self.tools = self.toolbar('Tools')
         self.actions.beginner = (
-            open, opendir, openNextImg, openPrevImg, verify, save, None, create, copy, delete, None,
+            changeSavedir, opendir, openNextImg, openPrevImg, verify, save, None, create, copy, delete, None,
             zoomIn, zoom, zoomOut, fitWindow, fitWidth)
 
         self.actions.advanced = (
-            open, save, None,
+            changeSavedir, opendir, openNextImg, openPrevImg, save, None,
             createMode, editMode, None,
             hideAll, showAll)
 
@@ -766,10 +772,12 @@ class MainWindow(QMainWindow, WindowMixin):
         """
         if not self.useDefautLabelCheckbox.isChecked() or not self.defaultLabelTextLine.text():
             if len(self.labelHist) > 0:
-                self.labelDialog = LabelDialog(
-                    parent=self, listItem=self.labelHist)
-
-            text = self.labelDialog.popUp(text=self.prevLabelText)
+                self.labelDialog = LabelDialog(parent=self, listItem=self.labelHist)
+            if self.singleClassMode.isChecked() and self.lastLabel:    
+                text = self.lastLabel
+            else:
+                text = self.labelDialog.popUp()
+                self.lastLabel = text
         else:
             text = self.defaultLabelTextLine.text()
 
@@ -1087,7 +1095,7 @@ class MainWindow(QMainWindow, WindowMixin):
 
     def verifyImg(self, _value=False):
         # Proceding next image without dialog if having any label
-         if self.filePath is not None:
+        if self.filePath is not None:
             try:
                 self.labelFile.toggleVerify()
             except AttributeError:
@@ -1101,6 +1109,11 @@ class MainWindow(QMainWindow, WindowMixin):
             self.saveFile()
 
     def openPrevImg(self, _value=False):
+        # Proceding next image without dialog if having any label
+        if self.autoSaving is True and self.defaultSaveDir is not None:
+            if self.dirty is True:
+                self.saveFile()   
+                
         if not self.mayContinue():
             return
 
@@ -1234,11 +1247,14 @@ class MainWindow(QMainWindow, WindowMixin):
             self.setDirty()
 
     def deleteSelectedShape(self):
-        self.remLabel(self.canvas.deleteSelected())
-        self.setDirty()
-        if self.noShapes():
-            for action in self.actions.onShapesPresent:
-                action.setEnabled(False)
+        try:
+            self.remLabel(self.canvas.deleteSelected())
+            self.setDirty()
+            if self.noShapes():
+                for action in self.actions.onShapesPresent:
+                    action.setEnabled(False)
+        except:
+            QMessageBox.information(self, u'Wrong Selection', u"You are selecting something except a shape  ")
 
     def chshapeLineColor(self):
         color = self.colorDialog.getColor(self.lineColor, u'Choose line color',
